@@ -59,12 +59,11 @@ type LockManager struct {
 	keyLocks []*locksutil.LockEntry
 }
 
-func NewLockManager(cachingDisabled bool, cacheSize int) (*LockManager, error) {
-
+func NewLockManager(useCache bool, cacheSize int) (*LockManager, error) {
 	// determine the type of cache to create
 	var cache Cache
 	switch {
-	case cachingDisabled:
+	case !useCache:
 	case cacheSize < 0:
 		return nil, errors.New("cache size must be greater or equal to zero")
 	case cacheSize == 0:
@@ -78,7 +77,7 @@ func NewLockManager(cachingDisabled bool, cacheSize int) (*LockManager, error) {
 	}
 
 	lm := &LockManager{
-		useCache: !cachingDisabled,
+		useCache: useCache,
 		cache:    cache,
 		keyLocks: locksutil.CreateLocks(),
 	}
@@ -88,6 +87,9 @@ func NewLockManager(cachingDisabled bool, cacheSize int) (*LockManager, error) {
 
 // some convenience methods
 func (lm *LockManager) GetCacheSize() int {
+	if !lm.useCache {
+		return 0
+	}
 	return lm.cache.Size()
 }
 

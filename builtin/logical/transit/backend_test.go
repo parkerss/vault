@@ -15,10 +15,10 @@ import (
 	"time"
 
 	uuid "github.com/hashicorp/go-uuid"
+	logicaltest "github.com/hashicorp/vault/helper/testhelpers/logical"
+	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/helper/keysutil"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/hashicorp/vault/sdk/framework"
-	logicaltest "github.com/hashicorp/vault/helper/testhelpers/logical"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -30,7 +30,7 @@ func createBackendWithStorage(t *testing.T) (*backend, logical.Storage) {
 	config := logical.TestBackendConfig()
 	config.StorageView = &logical.InmemStorage{}
 
-	b, _ := Backend(config)
+	b, _ := Backend(context.Background(), config)
 	if b == nil {
 		t.Fatalf("failed to create backend")
 	}
@@ -50,7 +50,7 @@ func createBackendWithSysView(t *testing.T) (*backend, logical.Storage) {
 		System:      sysView,
 	}
 
-	b, _ := Backend(conf)
+	b, _ := Backend(context.Background(), conf)
 	if b == nil {
 		t.Fatal("failed to create backend")
 	}
@@ -1294,16 +1294,17 @@ func testConvergentEncryptionCommon(t *testing.T, ver int, keyType keysutil.KeyT
 func TestPolicyFuzzing(t *testing.T) {
 	var be *backend
 	sysView := logical.TestSystemView()
+	sysView.CachingDisabledVal = true
 	conf := &logical.BackendConfig{
 		System: sysView,
 	}
 
-	be, _ = Backend(conf)
+	be, _ = Backend(context.Background(), conf)
 	be.Setup(context.Background(), conf)
 	testPolicyFuzzingCommon(t, be)
 
 	sysView.CachingDisabledVal = true
-	be, _ = Backend(conf)
+	be, _ = Backend(context.Background(), conf)
 	be.Setup(context.Background(), conf)
 	testPolicyFuzzingCommon(t, be)
 }

@@ -72,10 +72,21 @@ type configCacheSize struct {
 }
 
 func (b *backend) pathCacheConfigRead(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	// compare current and stored cache sizes. If they are different warn the user.
+	currentCacheSize := b.lm.GetCacheSize()
+	storedCacheSize, err := GetCacheSizeFromStorage(ctx, req.Storage)
+	if err != nil {
+		return nil, err
+	}
+
 	resp := &logical.Response{
 		Data: map[string]interface{}{
-			"cache_size": b.lm.GetCacheSize(),
+			"cache_size": storedCacheSize,
 		},
+	}
+
+	if currentCacheSize != storedCacheSize {
+		resp.Warnings = []string{"This cache size will not be applied until the transit mount is reloaded"}
 	}
 
 	return resp, nil

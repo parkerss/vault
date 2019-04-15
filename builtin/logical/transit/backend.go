@@ -2,7 +2,6 @@ package transit
 
 import (
 	"context"
-	"strconv"
 	"strings"
 
 	"github.com/hashicorp/errwrap"
@@ -12,16 +11,8 @@ import (
 )
 
 func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend, error) {
-	// update conf with stored cache size if there is one
-	if !conf.System.CachingDisabled() {
-		cacheSize, err := getCacheSizeFromStorage(ctx, conf.StorageView)
-		if err != nil {
-			return nil, errwrap.Wrapf("Error reading configured cache size from storage: {{err}}", err)
-		}
-		conf.Config["cacheSize"] = strconv.Itoa(cacheSize)
-	}
 
-	b, err := Backend(conf)
+	b, err := Backend(ctx, conf)
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +23,7 @@ func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend,
 	return b, nil
 }
 
-func Backend(conf *logical.BackendConfig) (*backend, error) {
+func Backend(ctx context.Context, conf *logical.BackendConfig) (*backend, error) {
 	var b backend
 	b.Backend = &framework.Backend{
 		PathsSpecial: &logical.Paths{
@@ -70,18 +61,19 @@ func Backend(conf *logical.BackendConfig) (*backend, error) {
 		BackendType: logical.TypeLogical,
 	}
 
+	// determine cacheSize to use. Defaults to 0 which means unlimited
 	cacheSize := 0
-	cacheSizeStr, OK := conf.Config["cacheSize"]
-	if OK {
+	useCache := !conf.System.CachingDisabled()
+	if useCache {
 		var err error
-		cacheSize, err = strconv.Atoi(cacheSizeStr)
+		cacheSize, err = GetCacheSizeFromStorage(ctx, conf.StorageView)
 		if err != nil {
-			return nil, err
+			return nil, errwrap.Wrapf("Error retrieving cache size from storage: {{err}}", err)
 		}
 	}
 
 	var err error
-	b.lm, err = keysutil.NewLockManager(conf.System.CachingDisabled(), cacheSize)
+	b.lm, err = keysutil.NewLockManager(useCache, cacheSize)
 	if err != nil {
 		return nil, err
 	}
@@ -94,8 +86,7 @@ type backend struct {
 	lm *keysutil.LockManager
 }
 
-// fetch the cache size configured in storage
-func getCacheSizeFromStorage(ctx context.Context, s logical.Storage) (int, error) {
+func GetCacheSizeFromStorage(ctx context.Context, s logical.Storage) (int, error) {
 	size := 0
 	entry, err := s.Get(ctx, "config/cache-size")
 	if err != nil {
