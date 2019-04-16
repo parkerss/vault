@@ -392,6 +392,18 @@ func TestBackend_basic_derived(t *testing.T) {
 	})
 }
 
+func TestAccCacheConfig(t *testing.T) {
+	cacheSize := 12345
+	logicaltest.Test(t, logicaltest.TestCase{
+		LogicalFactory: Factory,
+		Steps: []logicaltest.TestStep{
+			testAccStepReadCacheConfig(t, 0, false),
+			testAccStepWriteCacheConfig(t, cacheSize),
+			testAccStepReadCacheConfig(t, cacheSize, true),
+		},
+	})
+}
+
 func testAccStepWritePolicy(t *testing.T, name string, derived bool) logicaltest.TestStep {
 	ts := logicaltest.TestStep{
 		Operation: logical.UpdateOperation,
@@ -837,6 +849,52 @@ func testAccStepDecryptDatakey(t *testing.T, name string,
 
 			if d.Plaintext != dataKeyInfo["plaintext"].(string) {
 				return fmt.Errorf("plaintext mismatch: got '%s', expected '%s', decryptData was %#v", d.Plaintext, dataKeyInfo["plaintext"].(string), resp.Data)
+			}
+			return nil
+		},
+	}
+}
+
+func testAccStepWriteCacheConfig(t *testing.T, size int) logicaltest.TestStep {
+	return logicaltest.TestStep{
+		Operation: logical.UpdateOperation,
+		Path:      "cache-config",
+		Data: map[string]interface{}{
+			"size": size,
+		},
+		Check: func(resp *logical.Response) error {
+			if len(resp.Warnings) <= 0 {
+				return fmt.Errorf("response is missing warning message")
+			}
+			if len(resp.Data) != 0 {
+				return fmt.Errorf("response should not contain any data")
+			}
+			fmt.Printf("\nres: %#v\n", resp)
+			return nil
+		},
+	}
+}
+
+func testAccStepReadCacheConfig(t *testing.T, expected int, expectWarnings bool) logicaltest.TestStep {
+	return logicaltest.TestStep{
+		Operation: logical.ReadOperation,
+		Path:      "cache-config",
+		Check: func(resp *logical.Response) error {
+			actual, ok := resp.Data["cache_size"].(int)
+			if !ok {
+				return fmt.Errorf("No cache_size returned")
+			}
+			if expected != actual {
+				return fmt.Errorf("testAccReadCacheConfig expected: %d got: %d", expected, actual)
+			}
+			// check for the presence/absence of warnings - warnings are expected if a cache size has been configured but
+			// not yet applied by reloading the mount
+			warningCheckPass := expectWarnings == (len(resp.Warnings) > 0)
+			if !warningCheckPass {
+				return fmt.Errorf(
+					"testAccSteporeadCacheConfig warnings error.\nexpect warnings: %t but number of warnings was: %d",
+					expectWarnings, len(resp.Warnings),
+				)
 			}
 			return nil
 		},
