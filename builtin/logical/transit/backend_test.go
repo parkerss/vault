@@ -63,6 +63,49 @@ func createBackendWithSysView(t *testing.T) (*backend, logical.Storage) {
 	return b, storage
 }
 
+func createBackendWithSysViewWithStorage(t *testing.T, s logical.Storage) *backend {
+	sysView := logical.TestSystemView()
+
+	conf := &logical.BackendConfig{
+		StorageView: s,
+		System:      sysView,
+	}
+
+	b, _ := Backend(context.Background(), conf)
+	if b == nil {
+		t.Fatal("failed to create backend")
+	}
+
+	err := b.Backend.Setup(context.Background(), conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return b
+}
+
+func createBackendWithForceNoCacheWithSysViewWithStorage(t *testing.T, s logical.Storage) *backend {
+	sysView := logical.TestSystemView()
+	sysView.CachingDisabledVal = true
+
+	conf := &logical.BackendConfig{
+		StorageView: s,
+		System:      sysView,
+	}
+
+	b, _ := Backend(context.Background(), conf)
+	if b == nil {
+		t.Fatal("failed to create backend")
+	}
+
+	err := b.Backend.Setup(context.Background(), conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return b
+}
+
 func TestTransit_RSA(t *testing.T) {
 	testTransit_RSA(t, "rsa-2048")
 	testTransit_RSA(t, "rsa-4096")
@@ -388,18 +431,6 @@ func TestBackend_basic_derived(t *testing.T) {
 			testAccStepEnableDeletion(t, "test"),
 			testAccStepDeletePolicy(t, "test"),
 			testAccStepReadPolicy(t, "test", true, true),
-		},
-	})
-}
-
-func TestAccCacheConfig(t *testing.T) {
-	cacheSize := 12345
-	logicaltest.Test(t, logicaltest.TestCase{
-		LogicalFactory: Factory,
-		Steps: []logicaltest.TestStep{
-			testAccStepReadCacheConfig(t, 0, false),
-			testAccStepWriteCacheConfig(t, cacheSize),
-			testAccStepReadCacheConfig(t, cacheSize, true),
 		},
 	})
 }
@@ -849,52 +880,6 @@ func testAccStepDecryptDatakey(t *testing.T, name string,
 
 			if d.Plaintext != dataKeyInfo["plaintext"].(string) {
 				return fmt.Errorf("plaintext mismatch: got '%s', expected '%s', decryptData was %#v", d.Plaintext, dataKeyInfo["plaintext"].(string), resp.Data)
-			}
-			return nil
-		},
-	}
-}
-
-func testAccStepWriteCacheConfig(t *testing.T, size int) logicaltest.TestStep {
-	return logicaltest.TestStep{
-		Operation: logical.UpdateOperation,
-		Path:      "cache-config",
-		Data: map[string]interface{}{
-			"size": size,
-		},
-		Check: func(resp *logical.Response) error {
-			if len(resp.Warnings) <= 0 {
-				return fmt.Errorf("response is missing warning message")
-			}
-			if len(resp.Data) != 0 {
-				return fmt.Errorf("response should not contain any data")
-			}
-			fmt.Printf("\nres: %#v\n", resp)
-			return nil
-		},
-	}
-}
-
-func testAccStepReadCacheConfig(t *testing.T, expected int, expectWarnings bool) logicaltest.TestStep {
-	return logicaltest.TestStep{
-		Operation: logical.ReadOperation,
-		Path:      "cache-config",
-		Check: func(resp *logical.Response) error {
-			actual, ok := resp.Data["cache_size"].(int)
-			if !ok {
-				return fmt.Errorf("No cache_size returned")
-			}
-			if expected != actual {
-				return fmt.Errorf("testAccReadCacheConfig expected: %d got: %d", expected, actual)
-			}
-			// check for the presence/absence of warnings - warnings are expected if a cache size has been configured but
-			// not yet applied by reloading the mount
-			warningCheckPass := expectWarnings == (len(resp.Warnings) > 0)
-			if !warningCheckPass {
-				return fmt.Errorf(
-					"testAccSteporeadCacheConfig warnings error.\nexpect warnings: %t but number of warnings was: %d",
-					expectWarnings, len(resp.Warnings),
-				)
 			}
 			return nil
 		},

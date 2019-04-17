@@ -72,6 +72,13 @@ type configCacheSize struct {
 }
 
 func (b *backend) pathCacheConfigRead(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	// error if no cache is configured
+	if !b.lm.GetUseCache() {
+		return nil, errors.New(
+			"There is no cache for this backend. It was enabled with {force_no_cache: true}",
+		)
+	}
+
 	// compare current and stored cache sizes. If they are different warn the user.
 	currentCacheSize := b.lm.GetCacheSize()
 	storedCacheSize, err := GetCacheSizeFromStorage(ctx, req.Storage)

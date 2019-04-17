@@ -85,12 +85,15 @@ func NewLockManager(useCache bool, cacheSize int) (*LockManager, error) {
 	return lm, nil
 }
 
-// some convenience methods
 func (lm *LockManager) GetCacheSize() int {
 	if !lm.useCache {
 		return 0
 	}
 	return lm.cache.Size()
+}
+
+func (lm *LockManager) GetUseCache() bool {
+	return lm.useCache
 }
 
 func (lm *LockManager) InvalidatePolicy(name string) {
